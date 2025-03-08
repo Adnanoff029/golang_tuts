@@ -1,7 +1,12 @@
+// Interfaces are implemented implicitly.
+// If a type contains all the methods of an interface, it automatically fulfills the interface.
+
 package main
 
-import ("math" 
-		"fmt")
+import (
+	"fmt"
+	"math"
+)
 
 type quadrilateral interface {
 	area() float64
@@ -9,9 +14,33 @@ type quadrilateral interface {
 	diagonal() float64
 }
 
+type square struct {
+	side float64
+}
+
 type rect struct {
 	length float64
 	width  float64
+}
+
+type trapezius struct {
+	base1  float64
+	base2  float64
+	height float64
+	side1  float64
+	side2  float64
+}
+
+func (s square) area() float64 {
+	return s.side * s.side
+}
+
+func (s square) perimeter() float64 {
+	return 4 * s.side
+}
+
+func (s square) diagonal() float64 {
+	return s.side * math.Sqrt(2)
 }
 
 func (r rect) area() float64 {
