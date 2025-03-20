@@ -9,61 +9,115 @@
 // Channels are a typed, thread-safe queue. Channels allow different goroutines to communicate with each other.
 // Watchout for deadlocks when working with goroutines.
 
+// Some points to remember:
+// 1. A declared but uninitialized channel is nil.
+// 2. A send to a nil channel blocks forever.
+// 3. A receive from a nil channel blocks forever.
+// 4. Send to close channel will panic.
+// 5. Receive from closed channel returns zero value immediatey.
+
+
 package main
 
 import (
 	"fmt"
+	"time"
 )
 
-var o int
-
-func concurrentFunc(ch chan int) {
-	v := <-ch
-	fmt.Println("This is a concurrent function:", v)
-}
-
-func helper(ch chan int) {
-	for i := range 10 {
-		ch <- i
+// producer demonstrates sending values on an unbuffered channel
+func producer(ch chan int) {
+	for i := range 3 {
+		fmt.Printf("Sending: %d\n", i)
+		ch <- i // This will block until receiver is ready
+		time.Sleep(time.Millisecond * 1000)
 	}
 }
 
-func helper2(ch chan string, mp *map[int]string) {
-	str := <-ch
-	fmt.Println(str)
-	(*mp)[o] = str
-	o++
+// bufferProducer demonstrates sending values to a buffered channel
+func bufferProducer(ch chan int) {
+	// These won't block until buffer is full
+	ch <- 10
+	ch <- 20
 }
 
-func help() {
-	// Making a channel
-	ch := make(chan int)
+// sendOnly demonstrates a channel that can only send
+func sendOnly(ch chan int) {
+	ch <- 42
+}
+
+// receiveOnly demonstrates a channel that can only receive
+func receiveOnly(ch chan int) {
+	val := <-ch
+	fmt.Printf("Received in receiveOnly: %d\n", val)
+}
+
+// selectExample demonstrates the select statement with multiple channels
+func selectExample() {
+	ch1 := make(chan string)
 	ch2 := make(chan string)
-	// Send data to channel (this will block until another goroutine is ready to receive the value.)
-	mp := make(map[int]string)
-	mpPtr := &mp
-	go helper(ch)
-	var i int
-	for i < 10 {
-		concurrentFunc(ch)
-		i++
-	}
-	i = 0
-	go helper2(ch2, mpPtr)
-	for i < 10 {
-		ch2 <- "This is a string"
-		i++
-	}
-	for key, value := range mp {
-		fmt.Println(key, value)
-	}
-	// Receive data from channel (reads and removes a value from the channel and saves it into a variable v. Operation will block until the value is read.)
-	// v := <-ch
-	// sometimes we don't care what is passed through a channel. We care when and if it is passed. Hence we use empty channels.
-	// <- ch will block until it pops a single item off the channel, then continue discardin the item.
 
+	go func() {
+		time.Sleep(time.Millisecond * 1000)
+		ch1 <- "message from ch1"
+	}()
+
+	go func() {
+		time.Sleep(time.Millisecond * 2000)
+		ch2 <- "message from ch2"
+	}()
+
+	// Select statement with timeout
+	fmt.Println("\nSelect statement example:")
+	for range 2 {
+		select {
+		case msg1 := <-ch1:
+			fmt.Println(msg1)
+		case msg2 := <-ch2:
+			fmt.Println(msg2)
+		case <-time.After(time.Millisecond * 3000):
+			fmt.Println("Timeout!")
+			return
+		}
+	}
 }
 
 func main() {
-	help()
+	// Declare an unbuffered channel of integers
+	// Unbuffered channels block until both sender and receiver are ready
+	ch := make(chan int)
+
+	// Declare a buffered channel with capacity of 2
+	// Buffered channels block only when buffer is full (for sends) or empty (for receives)
+	bufferedCh := make(chan int, 2)
+
+	// Start a goroutine to demonstrate channel communication
+	go producer(ch)
+	go bufferProducer(bufferedCh)
+
+	// Receive values from unbuffered channel (recieved from producer())
+	fmt.Println("Receiving from unbuffered channel:")
+	for range 3 {
+		value := <-ch
+		fmt.Printf("Received: %d\n", value)
+	}
+	close(ch) // This will close the channel
+
+	// Demonstrate buffered channel operations (recieved from bufferProducer())
+	fmt.Println("\nBuffered channel operations:")
+	for range 2 {
+		value := <-bufferedCh
+		fmt.Printf("Received from buffer: %d\n", value)
+	}
+	close(bufferedCh) // This will close the channel
+	// bufferedCh <- 30 // This will panic because the channel is closed
+	v, ok := <-bufferedCh // 0, false because the channel is closed
+	fmt.Printf("Checking if bufferedCh is closed: %d, %t\n", v, ok)
+
+	// Channel direction example (recieved from sendOnly() and receiveOnly())
+	sendOnlyCh := make(chan int)
+	go sendOnly(sendOnlyCh)    // Write only channel
+	go receiveOnly(sendOnlyCh) // Read only channel
+
+	// Select statement example with timeout
+	selectExample()
 }
